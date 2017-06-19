@@ -24,7 +24,7 @@ MODULE_LICENSE("GPL");
 
 struct yesfs_file_info {
 	size_t msg_buf_size;
-	char msg_buf[];
+	char *msg_buf;
 };
 
 static ssize_t yesfs_copy_to_user(char __user *dst, const struct yesfs_file_info *info, size_t count, loff_t offset)
@@ -108,8 +108,13 @@ static int yesfs_open(struct inode *inode, struct file *file)
 	path_len = strlen(path);
 	nr_repeats = (path_len + 1 >= MAX_MSG_BUF) ? 1 : (MAX_MSG_BUF / (path_len + 1)); // +1 : for '\n'
 	msg_buf_size = nr_repeats * (path_len + 1);
-	info = kzalloc(sizeof(struct yesfs_file_info) + msg_buf_size, GFP_KERNEL);
+	info = kzalloc(sizeof(struct yesfs_file_info), GFP_KERNEL);
 	if(info == NULL) {
+		err = -ENOMEM;
+		goto err_alloc_file_info;
+	}
+	info->msg_buf = kzalloc(msg_buf_size, GFP_KERNEL);
+	if(info->msg_buf == NULL) {
 		err = -ENOMEM;
 		goto err_alloc_buf;
 	}
@@ -123,6 +128,8 @@ static int yesfs_open(struct inode *inode, struct file *file)
 	return 0;
 
 err_alloc_buf:
+	kfree(info);
+err_alloc_file_info:
 err_path:
 	kfree(path_buf);
 err_alloc_path_buf:
